@@ -1,17 +1,69 @@
-// LocalStorage bilan ishlash uchun utility funksiyalar
+// LocalStorage va Server API bilan ishlash uchun utility funksiyalar
 
 const REPORTS_KEY = 'tourReports';
 const EXPENSES_KEY = 'tourExpenses';
 
+// In-memory kesh
+let cachedData = {
+  reports: {},
+  expenses: {}
+};
+
+// Keshni LocalStorage'dan boshlang'ich yuklash (offline yoki tezkor yuklanish uchun)
+try {
+  const reportsData = localStorage.getItem(REPORTS_KEY);
+  const expensesData = localStorage.getItem(EXPENSES_KEY);
+  cachedData.reports = reportsData ? JSON.parse(reportsData) : {};
+  cachedData.expenses = expensesData ? JSON.parse(expensesData) : {};
+} catch (e) {
+  console.error("Lokal keshni o'qishda xatolik:", e);
+}
+
+// Ma'lumotlarni serverga yuborish funksiyasi (orqa fonda)
+async function syncToServer() {
+  try {
+    const response = await fetch('/api/data', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reports: cachedData.reports,
+        expenses: cachedData.expenses,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Server status: ${response.status}`);
+    }
+  } catch (error) {
+    console.warn("Serverga sinxronlash amalga oshmadi (offline bo'lishi mumkin):", error);
+  }
+}
+
+// Serverdan ma'lumotlarni yuklab olish funksiyasi (App boshlanishida chaqiriladi)
+export async function initStore() {
+  try {
+    const response = await fetch('/api/data');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.reports) {
+        cachedData.reports = data.reports;
+        localStorage.setItem(REPORTS_KEY, JSON.stringify(data.reports));
+      }
+      if (data.expenses) {
+        cachedData.expenses = data.expenses;
+        localStorage.setItem(EXPENSES_KEY, JSON.stringify(data.expenses));
+      }
+    }
+  } catch (error) {
+    console.warn("Server bilan ulanib bo'lmadi, offline rejimda ishlamoqda:", error);
+  }
+}
+
 // ==================== HISOBOTLAR ====================
 
 export function getAllReports() {
-  try {
-    const data = localStorage.getItem(REPORTS_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return cachedData.reports;
 }
 
 export function getMonthReports(year, month) {
@@ -25,6 +77,7 @@ export function saveMonthReports(year, month, records) {
   const key = `${year}-${String(month).padStart(2, '0')}`;
   all[key] = records;
   localStorage.setItem(REPORTS_KEY, JSON.stringify(all));
+  syncToServer();
 }
 
 export function addReport(year, month, record) {
@@ -62,12 +115,7 @@ export function getAllMonthKeys() {
 // ==================== XARAJATLAR ====================
 
 export function getAllExpenses() {
-  try {
-    const data = localStorage.getItem(EXPENSES_KEY);
-    return data ? JSON.parse(data) : {};
-  } catch {
-    return {};
-  }
+  return cachedData.expenses;
 }
 
 export function getMonthExpenses(year, month) {
@@ -81,6 +129,7 @@ export function saveMonthExpenses(year, month, records) {
   const key = `${year}-${String(month).padStart(2, '00')}`;
   all[key] = records;
   localStorage.setItem(EXPENSES_KEY, JSON.stringify(all));
+  syncToServer();
 }
 
 export function addExpense(year, month, record) {
@@ -170,8 +219,15 @@ export function exportAllData() {
 export function importAllData(jsonString) {
   try {
     const data = JSON.parse(jsonString);
-    if (data.reports) localStorage.setItem(REPORTS_KEY, JSON.stringify(data.reports));
-    if (data.expenses) localStorage.setItem(EXPENSES_KEY, JSON.stringify(data.expenses));
+    if (data.reports) {
+      cachedData.reports = data.reports;
+      localStorage.setItem(REPORTS_KEY, JSON.stringify(data.reports));
+    }
+    if (data.expenses) {
+      cachedData.expenses = data.expenses;
+      localStorage.setItem(EXPENSES_KEY, JSON.stringify(data.expenses));
+    }
+    syncToServer();
     return true;
   } catch {
     return false;

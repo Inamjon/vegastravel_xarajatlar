@@ -8,11 +8,19 @@ import ReportDetail from './components/ReportDetail';
 import MonthlyExpenses from './components/MonthlyExpenses';
 import ExpenseDetail from './components/ExpenseDetail';
 import Backup from './components/Backup';
+import { initStore } from './data/store';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem('auth_token') === 'logged_in';
   });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    initStore().then(() => {
+      setIsLoading(false);
+    });
+  }, []);
 
   function handleLogin() {
     setIsLoggedIn(true);
@@ -21,6 +29,36 @@ function App() {
   function handleLogout() {
     localStorage.removeItem('auth_token');
     setIsLoggedIn(false);
+  }
+
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        background: '#0f172a',
+        color: '#f8fafc',
+        fontFamily: 'system-ui, sans-serif'
+      }}>
+        <div style={{
+          fontSize: 32,
+          marginBottom: 16,
+          animation: 'spin 1.5s linear infinite',
+        }}>🔄</div>
+        <div style={{ fontSize: 16, fontWeight: 500, letterSpacing: '0.05em' }}>
+          Ma'lumotlar yuklanmoqda...
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
   }
 
   if (!isLoggedIn) {
